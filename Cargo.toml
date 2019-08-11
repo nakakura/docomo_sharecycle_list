@@ -1,0 +1,14 @@
+[package]
+name = "docomo-sharecycle"
+version = "0.1.0"
+authors = ["Toshiya Nakakura <nakakura@me.com>"]
+edition = "2018"
+
+[dependencies]
+env_logger = "0.6.2"
+failure = "0.1.5"
+futures = "0.1.28"
+log = "0.4.8"
+regex = "1.2.1"
+reqwest = "0.9.19"
+tokio = "0.1.22"
