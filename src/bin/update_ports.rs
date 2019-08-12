@@ -12,6 +12,6 @@ fn main() {
     let password = env::var("PASSWORD").expect("PASSWORD is not set in environment variables");
     // FIXME とりあえず品川区役所前だけ調べている
     let fut = login(user_id, password)
-        .and_then(|d_id| list(d_id, "10414"));
+        .and_then(|d_id| list_bicycles(d_id, "10414"));
     tokio::run(fut.map_err(|e| panic!(e)));
 }

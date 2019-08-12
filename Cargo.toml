@@ -16,3 +16,7 @@ tokio = "0.1.22"
 [[bin]]
 name = "update_ports"
 path = "src/bin/update_ports.rs"
+
+[[bin]]
+name = "register_ports"
+path = "src/bin/register_ports.rs"
