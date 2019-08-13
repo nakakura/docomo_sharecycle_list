@@ -48,10 +48,14 @@ fn main() {
         }); //area_id: 10 は品川区, 3は港区
     tokio::run(fut.map_err(|e| panic!(e)));
 
-    let html = r#"<!DOCTYPE html><html lang="en">\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n<table border=1>"#;
+    let html =
+r#"<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<table border=1>"#;
     let rx = rx.fold(html.to_string(), |sum, port| {
-        let PortInfo((_, port_name, cycles_num)) = port;
-        let message = format!("{}\n<tr><td>{}</td><td>{}</td></tr>", sum, port_name, cycles_num);
+        let PortInfo((port_id, port_name, cycles_num)) = port;
+        let message = format!("{}\n<tr><td>{}.{}</td><td>{}</td></tr>", sum, port_id, port_name, cycles_num);
         Ok(message)
     }).and_then(move |message| {
         let message = format!("{}</table>\n<img src='./map.png'>\n</body>\n</html>", message);
