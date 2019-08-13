@@ -17,13 +17,14 @@ pub struct DocomoId((String, String, String));
 pub struct PortInfo(pub (String, String, usize));
 
 fn parse_port_info(html: &str) -> HashMap<String, PortInfo> {
-    let reg_str = r#"<form method="POST"(?s:.*?)name="ParkingID" value="(?s:(.*?))"(?s:.*?)<a class="port_list_btn_inner(?s:.*?)>(?s:(.*?))<br>(?s:.*?)<br>([0-9]*?)台</a>"#;
+    let reg_str = r#"<form method="POST"(?s:.*?)name="ParkingID" value="(?s:(.*?))"(?s:.*?)<a class="port_list_btn_inner(?s:.*?)>(?s:(.*?))\.(?s:(.*?))<br>(?s:.*?)<br>([0-9]*?)台</a>"#;
     let reg = Regex::new(reg_str).unwrap();
     let caps = reg.captures_iter(&html);
     caps.filter_map(|cap| {
-        let park_id = cap.get(1).map(|c| c.as_str().to_string());
-        let park_name = cap.get(2).map(|c| c.as_str().to_string());
-        let cycles_num = cap.get(3).map(|c| c.as_str().parse::<usize>().unwrap());
+        let park_code = cap.get(1).map(|c| c.as_str().to_string());
+        let park_id = cap.get(2).map(|c| c.as_str().to_string());
+        let park_name = cap.get(3).map(|c| c.as_str().to_string());
+        let cycles_num = cap.get(4).map(|c| c.as_str().parse::<usize>().unwrap());
         if let (Some(park_id), Some(park_name), Some(cycles_num)) = (park_id, park_name, cycles_num) {
             Some((park_id.to_string(), PortInfo((park_id, park_name, cycles_num))))
         } else {
@@ -59,7 +60,9 @@ pub fn list_ports(docomo_id: &DocomoId, area_id: &str, filter_ports: Vec<String>
             let port_info_vec = parse_port_info(&t);
             for key in filter_ports {
                 let port = port_info_vec.get(&key);
-                let _ = (&mut *tx.lock().unwrap()).send(port.unwrap().clone()).wait();
+                if let Some(port) = port {
+                    let _ = (&mut *tx.lock().unwrap()).send(port.clone()).wait();
+                }
             }
             Ok(())
         })

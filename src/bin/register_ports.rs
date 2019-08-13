@@ -17,7 +17,8 @@ fn main() {
     let tx_arc = Arc::new(Mutex::new(tx));
     let user_id = env::var("USER_ID").expect("USER_ID is not set in environment variables");
     let password = env::var("PASSWORD").expect("PASSWORD is not set in environment variables");
-    let file_path = env::var("FILE_PATH").expect("PASSWORD is not set in environment variables");
+    let file_path = env::var("FILE_PATH").expect("FILEPATH is not set in environment variables");
+    let ports_path = env::var("PORTS_PATH").expect("PORTS_PATH is not set in environment variables");
     // FIXME とりあえず品川区役所とシーバンス周辺だけ調べる
     // "10414", "I1-01.品川区役所 本庁舎前"
     // "10415", "I1-02.品川区役所 第三庁舎前"
@@ -33,24 +34,27 @@ fn main() {
     // "10166", "C5-10.シーバンス"
     // "10091", "C5-05.浜松町ビルディング"
 
-    let minato_ports: Vec<String> = vec!("10305", "10576", "10166", "10091").into_iter().map(|s| s.to_string()).collect();
-    let shinagwa_ports: Vec<String> = vec!("10414", "10415", "10416", "10417", "10580", "10668", "10772", "10461", "10516").into_iter().map(|s| s.to_string()).collect();
+    let ports: Vec<String> = fs::read_to_string(ports_path).expect("config file not found")
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect();
     let fut = login(user_id, password)
         .and_then(move |d_id| {
-            let list1 = list_ports(&d_id, "3", minato_ports, tx_arc.clone());
+            let list1 = list_ports(&d_id, "3", ports.clone(), tx_arc.clone());
             tokio::spawn(list1.map_err(|e| panic!(e)));
-            let list2 = list_ports(&d_id, "10", shinagwa_ports, tx_arc.clone());
+            let list2 = list_ports(&d_id, "10", ports, tx_arc.clone());
             tokio::spawn(list2.map_err(|e| panic!(e)));
             Ok(())
         }); //area_id: 10 は品川区, 3は港区
     tokio::run(fut.map_err(|e| panic!(e)));
 
-    let rx = rx.fold("<table border=1>".to_string(), |sum, port| {
+    let html = r#"<!DOCTYPE html><html lang="en">\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n<table border=1>"#;
+    let rx = rx.fold(html.to_string(), |sum, port| {
         let PortInfo((_, port_name, cycles_num)) = port;
-        let message = format!("{}<tr><td>{}</td><td>{}</td></tr>", sum, port_name, cycles_num);
+        let message = format!("{}\n<tr><td>{}</td><td>{}</td></tr>", sum, port_name, cycles_num);
         Ok(message)
     }).and_then(move |message| {
-        let message = format!("{}</table>", message);
+        let message = format!("{}</table>\n<img src='./map.png'>\n</body>\n</html>", message);
         let mut f = fs::File::create(&file_path).unwrap(); // open file, you can write to file.
         f.write_all(message.as_bytes()).unwrap(); // byte-only
         Ok(())
