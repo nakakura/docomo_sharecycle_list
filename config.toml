@@ -2,13 +2,13 @@
     id = 3
     [[area.subarea]]
         ports = ["C5-09", "C5-21"]
-        title = "seavance"
+        title = "granpark"
     [[area.subarea]]
         ports = ["C5-02", "C5-07", "C5-11", "C5-14"]
         title = "konan"
     [[area.subarea]]
         ports = ["C5-05",  "C5-10", "C5-17", "C5-24",  "C5-27"]
-        title = "granpark"
+        title = "seavance"
 [[area]]
     id = 1
     [[area.subarea]]

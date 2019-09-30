@@ -43,10 +43,10 @@ fn main() {
     let tx_arc = Arc::new(Mutex::new(tx));
     let user_id = env::var("USER_ID").expect("USER_ID is not set in environment variables");
     let password = env::var("PASSWORD").expect("PASSWORD is not set in environment variables");
-    let toml_path = env::var("TOML_PATH").expect("PORTS_PATH is not set in environment variables");
-    let file_dir = env::var("FILE_DIR").expect("PORTS_PATH is not set in environment variables");
+    let toml_path = env::var("TOML_PATH").expect("TOML_PATH is not set in environment variables");
+    let file_dir = env::var("FILE_DIR").expect("FILE_DIR is not set in environment variables");
     let areas = {
-        let s = match read_file("./config.toml".to_owned()) {
+        let s = match read_file(toml_path) {
             Ok(s) => s,
             Err(e) => panic!("fail to read file: {}", e),
         };
