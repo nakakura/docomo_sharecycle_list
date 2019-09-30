@@ -8,13 +8,38 @@ use log::info;
 use reqwest;
 use reqwest::r#async::Client;
 use regex::Regex;
+use serde::Deserialize;
 
 pub mod error;
+
+#[derive(Debug, Deserialize)]
+pub struct SubArea {
+    ports: Vec<String>,
+    title: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct DocomoId((String, String, String));
 #[derive(Debug, Clone)]
 pub struct PortInfo(pub (String, String, usize));
+
+pub struct HtmlSource {
+    pub ports: Vec<PortInfo>,
+    pub title: String,
+}
+
+impl HtmlSource {
+    pub fn new(title: String) -> Self {
+        HtmlSource {
+            ports: vec!(),
+            title: title,
+        }
+    }
+
+    pub fn push(&mut self, port: PortInfo) {
+        self.ports.push(port);
+    }
+}
 
 fn parse_port_info(html: &str) -> HashMap<String, PortInfo> {
     let reg_str = r#"<form method="POST"(?s:.*?)name="ParkingID" value="(?s:(.*?))"(?s:.*?)<a class="port_list_btn_inner(?s:.*?)>(?s:(.*?))\.(?s:(.*?))<br>(?s:.*?)<br>([0-9]*?)台</a>"#;
@@ -33,8 +58,9 @@ fn parse_port_info(html: &str) -> HashMap<String, PortInfo> {
     }).collect()
 }
 
-pub fn list_ports(docomo_id: &DocomoId, area_id: &str, filter_ports: Vec<String>, tx: Arc<Mutex<mpsc::Sender<PortInfo>>>) -> impl Future<Item=(), Error=error::ErrorEnum> {
+pub fn list_ports(docomo_id: &DocomoId, area_id: usize, filter_subareas: Vec<SubArea>, tx: Arc<Mutex<mpsc::Sender<HtmlSource>>>) -> impl Future<Item=(), Error=error::ErrorEnum> {
     let DocomoId((session_id, user_id, member_id)) = docomo_id;
+    let area_id = area_id.to_string();
     let mut params = HashMap::new();
     params.insert("EventNo", "25702");
     params.insert("SessionID", &session_id);
@@ -47,7 +73,7 @@ pub fn list_ports(docomo_id: &DocomoId, area_id: &str, filter_ports: Vec<String>
     params.insert("MapType", "1");
     params.insert("MapZoom", "13");
     params.insert("EntServiceID", "TYO0001");
-    params.insert("AreaID", area_id);
+    params.insert("AreaID", &area_id);
 
     Client::new()
         .post("https://tcc.docomo-cycle.jp/cycle/TYO/cs_web_main.php")
@@ -58,11 +84,15 @@ pub fn list_ports(docomo_id: &DocomoId, area_id: &str, filter_ports: Vec<String>
         })
         .and_then(move |t| {
             let port_info_vec = parse_port_info(&t);
-            for key in filter_ports {
-                let port = port_info_vec.get(&key);
-                if let Some(port) = port {
-                    let _ = (&mut *tx.lock().unwrap()).send(port.clone()).wait();
+            for subarea in filter_subareas {
+                let mut port_table_trs = HtmlSource::new(subarea.title);
+                for key in subarea.ports {
+                    let port = port_info_vec.get(&key);
+                    if let Some(port) = port {
+                        port_table_trs.push(port.clone());
+                    }
                 }
+                let _ = (&mut *tx.lock().unwrap()).send(port_table_trs).wait();
             }
             Ok(())
         })

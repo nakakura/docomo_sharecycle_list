@@ -1,0 +1,25 @@
+[[area]]
+    id = 3
+    [[area.subarea]]
+        ports = ["C5-09", "C5-21"]
+        title = "seavance"
+    [[area.subarea]]
+        ports = ["C5-02", "C5-07", "C5-11", "C5-14"]
+        title = "konan"
+    [[area.subarea]]
+        ports = ["C5-05",  "C5-10", "C5-17", "C5-24",  "C5-27"]
+        title = "granpark"
+[[area]]
+    id = 1
+    [[area.subarea]]
+        ports = ["A4-02", "A4-05", "A4-06", "A4-07", "A4-08"]
+        title = "otemachi"
+[[area]]
+    id = 10
+    [[area.subarea]]
+        ports = ["I1-01", "I1-02", "I1-03", "I1-04", "I1-30", "I1-44", "I1-58"]
+        title = "oimachi"
+    [[area.subarea]]
+        ports = ["I1-09", "I1-17", "I1-35"]
+        title = "tennozu"
+

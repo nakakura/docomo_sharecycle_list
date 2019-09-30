@@ -6,44 +6,61 @@ use std::sync::{Arc, Mutex};
 use futures::future::*;
 use futures::stream::Stream;
 use log::info;
+use toml;
+use serde::Deserialize;
 
 use docomo_sharecycle::*;
+
+#[derive(Debug, Deserialize)]
+struct Area {
+    id: usize,
+    subarea: Vec<SubArea>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Toml {
+    area: Vec<Area>,
+}
+
+fn read_file(path: String) -> Result<String, String> {
+    let mut file_content = String::new();
+
+    let mut fr = fs::File::open(path)
+        .map(|f| BufReader::new(f))
+        .map_err(|e| e.to_string())?;
+
+    fr.read_to_string(&mut file_content)
+        .map_err(|e| e.to_string())?;
+
+    Ok(file_content)
+}
 
 fn main() {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
-    let (tx, rx) = futures::sync::mpsc::channel::<PortInfo>(100);
+    let (tx, rx) = futures::sync::mpsc::channel::<HtmlSource>(100);
     let tx_arc = Arc::new(Mutex::new(tx));
     let user_id = env::var("USER_ID").expect("USER_ID is not set in environment variables");
     let password = env::var("PASSWORD").expect("PASSWORD is not set in environment variables");
-    let file_path = env::var("FILE_PATH").expect("FILEPATH is not set in environment variables");
-    let ports_path = env::var("PORTS_PATH").expect("PORTS_PATH is not set in environment variables");
-    // FIXME とりあえず品川区役所とシーバンス周辺だけ調べる
-    // "10414", "I1-01.品川区役所 本庁舎前"
-    // "10415", "I1-02.品川区役所 第三庁舎前"
-    // "10416", "I1-03.大井町駅中央口（西側）"
-    // "10417", "I1-04.大井町歩道橋"
-    // "10580", "I1-30.ローソン 大井三丁目店"
-    // "10668", "I1-44.大井三ツ又商店街入口"
-    // "10772", "I1-58.品川区役所\u{3000}第二庁舎前"
-    // "10461", "I1-09.東品川海上公園第1"
-    // "10516", "I1-17.東品川海上公園第2"
-    // "10305", "C5-17.鈴与浜松町ビル"
-    // "10576", "C5-27.プレミア海岸ビル"
-    // "10166", "C5-10.シーバンス"
-    // "10091", "C5-05.浜松町ビルディング"
+    let toml_path = env::var("TOML_PATH").expect("PORTS_PATH is not set in environment variables");
+    let file_dir = env::var("FILE_DIR").expect("PORTS_PATH is not set in environment variables");
+    let areas = {
+        let s = match read_file("./config.toml".to_owned()) {
+            Ok(s) => s,
+            Err(e) => panic!("fail to read file: {}", e),
+        };
+        let config: Result<Toml, toml::de::Error> = toml::from_str(&s);
+        config.expect("toml parse error").area
+    };
 
-    let ports: Vec<String> = fs::read_to_string(ports_path).expect("config file not found")
-        .split_whitespace()
-        .map(|s| s.to_string())
-        .collect();
     let fut = login(user_id, password)
         .and_then(move |d_id| {
-            let list1 = list_ports(&d_id, "3", ports.clone(), tx_arc.clone());
-            tokio::spawn(list1.map_err(|e| panic!(e)));
-            let list2 = list_ports(&d_id, "10", ports, tx_arc.clone());
-            tokio::spawn(list2.map_err(|e| panic!(e)));
+            for area in areas {
+                let area_id = area.id;
+                let list = list_ports(&d_id, area_id, area.subarea, tx_arc.clone());
+                tokio::spawn(list.map_err(|e| panic!(e)));
+            }
             Ok(())
         }); //area_id: 10 は品川区, 3は港区
     tokio::run(fut.map_err(|e| panic!(e)));
@@ -52,15 +69,21 @@ fn main() {
 r#"<!DOCTYPE html><html lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<table border=1>"#;
-    let rx = rx.fold(html.to_string(), |sum, port| {
-        let PortInfo((port_id, port_name, cycles_num)) = port;
-        let message = format!("{}\n<tr><td>{}.{}</td><td>{}</td></tr>", sum, port_id, port_name, cycles_num);
-        Ok(message)
-    }).and_then(move |message| {
-        let message = format!("{}</table>\n<img src='./map.png'>\n</body>\n</html>", message);
+<table border=1>"#.to_string();
+    let rx = rx.and_then(move |html_source| {
+        let mut output= html.clone();
+        let title = html_source.title;
+        for port in html_source.ports {
+            let PortInfo((port_id, port_name, cycles_num)) = port;
+            let message = format!("\n<tr><td>{}.{}</td><td>{}</td></tr>", port_id, port_name, cycles_num);
+            output += &message;
+        }
+        output += &format!("\n</table>\n<img src='./{}.png'>\n</body>\n</html>", title);
+        Ok((title, output))
+    }).for_each(move |(title, html)| {
+        let file_path = format!("{}/{}.html", file_dir, title);
         let mut f = fs::File::create(&file_path).unwrap(); // open file, you can write to file.
-        f.write_all(message.as_bytes()).unwrap(); // byte-only
+        f.write_all(html.as_bytes()).unwrap(); // byte-only
         Ok(())
     });
     tokio::run(rx);
